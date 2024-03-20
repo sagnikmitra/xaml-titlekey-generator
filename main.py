@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 st.set_page_config (layout="wide")
 def detect_titles(xaml_content, file_name):
     titles = []
@@ -60,13 +61,7 @@ def generate_text_resource(lines_with_titles):
         text_resource_lines.add(text_resource_line)
     return text_resource_lines
 
-st.title("XAML Title Detector")
-
-file_name = st.text_input("Enter File Name (without extension)")
-
-xaml_content = st.text_area("Paste your XAML content here")
-
-if st.button("Detect Titles"):
+def process_xaml_content(xaml_content, file_name):
     lines_with_titles, new_xaml_content = detect_titles(xaml_content, file_name)
 
     st.subheader("Modified XAML Content:")
@@ -80,9 +75,31 @@ if st.button("Detect Titles"):
     st.subheader("Lines with the generated Title Keys:")
     table_data = []
     table_data.append(('Line Number', 'Old Title', 'New Title Key', 'Line Content'))
-    
-    for line_number, title, new_line_content, _ in lines_with_titles: 
+
+    for line_number, title, new_line_content, _ in lines_with_titles:
         new_title_key = new_line_content.split('TitleKey="')[1].split('"')[0]
         table_data.append((line_number, title, new_title_key, new_line_content))
-    
+
     st.table(table_data)
+
+st.title("XAML Title Detector")
+
+option = st.radio("Choose an option:", ("Upload File", "Enter File Content and Name"))
+
+if option == "Upload File":
+    uploaded_file = st.file_uploader("Upload XAML File", type=["xaml"])
+
+    if uploaded_file is not None:
+        file_name = os.path.splitext(uploaded_file.name)[0]  # Extract file name without extension
+        xaml_content = uploaded_file.getvalue().decode("utf-8")  # Read the uploaded file content
+
+        if st.button("Detect Titles"):
+            process_xaml_content(xaml_content, file_name)
+
+elif option == "Enter File Content and Name":
+    file_name = st.text_input("Enter File Name (without extension)")
+
+    xaml_content = st.text_area("Paste your XAML content here")
+
+    if st.button("Detect Titles"):
+        process_xaml_content(xaml_content, file_name)
