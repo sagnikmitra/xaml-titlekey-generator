@@ -2,6 +2,7 @@ import streamlit as st
 import os
 from io import BytesIO
 import zipfile
+import datetime
 
 st.set_page_config(layout="wide")
 
@@ -62,7 +63,7 @@ def replace_title_with_titlekey(line, file_name, property_name, title_end, title
 
 
 def generate_text_resource(lines_with_titles):
-    text_resource_lines = set()  # Use a set to keep unique entries
+    text_resource_lines = set()  
     for line_number, title, line_content, _ in lines_with_titles:
         title_key = line_content.split('TitleKey="')[1].split('"')[0]
         text_resource_line = f'<TextResource Name="{title_key}" Value="{title}"/>'
@@ -78,7 +79,7 @@ def process_xaml_content(xaml_content, file_name, if_mode_of_input_entry):
         st.subheader("Generated Text Resource:")
         
     text_resource_lines = generate_text_resource(lines_with_titles)
-    sorted_text_resource_lines = sorted(text_resource_lines)  # Sort the text resource lines alphabetically
+    sorted_text_resource_lines = sorted(text_resource_lines) 
     xml_text = '\n'.join(sorted_text_resource_lines)
     
     if(if_mode_of_input_entry):
@@ -111,8 +112,8 @@ if option == "Upload File":
         all_table_data = []
 
         for uploaded_file in uploaded_files:
-            file_name = os.path.splitext(uploaded_file.name)[0]  # Extract file name without extension
-            xaml_content = uploaded_file.getvalue().decode("utf-8")  # Read the uploaded file content
+            file_name = os.path.splitext(uploaded_file.name)[0] 
+            xaml_content = uploaded_file.getvalue().decode("utf-8") 
 
             st.info(f"Processed {file_name}")
             titles, text_resources, table_data = process_xaml_content(xaml_content, file_name, False)
@@ -121,22 +122,23 @@ if option == "Upload File":
             all_text_resources.update(text_resources)
             all_table_data.extend(table_data)
 
-        # Download all updated files
         if st.button("Download All Updated Files"):
             zip_file = BytesIO()
+            file_name_string = ""
             with zipfile.ZipFile(zip_file, 'w') as zipf:
                 for file_name, content in all_files:
                     updated_file_content = detect_titles(content, file_name)[1]
                     zipf.writestr(f"{file_name}.xaml", updated_file_content.encode())
+                    file_name_string += "_" + file_name
             zip_file.seek(0)
-            st.download_button(label="Download", data=zip_file, file_name="Processed_XAML_Files.zip", mime="application/zip")
+            current_datetime = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            zip_filename = f"Processed_XAML_Files_{current_datetime}{file_name_string}.zip"
+            st.download_button(label="Download", data=zip_file, file_name=zip_filename, mime="application/zip")
             
-        # Collate all text resources into a single XML code snippet
         st.subheader("Collated Text Resources:")
         collated_xml_text = '\n'.join(all_text_resources)
         st.code(collated_xml_text, language='xml')
 
-        # Collate all tables into a single table
         st.subheader("Collated Table Data:")
         st.dataframe(all_table_data)
 
