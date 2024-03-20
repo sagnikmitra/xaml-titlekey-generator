@@ -3,6 +3,7 @@ import os
 from io import BytesIO
 import zipfile
 import datetime
+import pytz
 
 st.set_page_config(layout="wide")
 
@@ -131,7 +132,8 @@ if option == "Upload File":
                     zipf.writestr(f"{file_name}.xaml", updated_file_content.encode())
                     file_name_string += "_" + file_name
             zip_file.seek(0)
-            current_datetime = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            ist = pytz.timezone('Asia/Kolkata')
+            current_datetime = datetime.datetime.now(ist).strftime("%d%m%Y_%H%M%S")
             zip_filename = f"Processed_XAML_Files_{current_datetime}{file_name_string}.zip"
             st.download_button(label="Download", data=zip_file, file_name=zip_filename, mime="application/zip")
             
