@@ -1,6 +1,10 @@
 import streamlit as st
 import os
-st.set_page_config (layout="wide")
+from io import BytesIO
+import zipfile
+
+st.set_page_config(layout="wide")
+
 def detect_titles(xaml_content, file_name):
     titles = []
     new_xaml_content = ""
@@ -18,7 +22,7 @@ def detect_titles(xaml_content, file_name):
             new_xaml_content += new_line + "\n"
         else:
             new_xaml_content += line + "\n"
-    return lines_with_titles, new_xaml_content
+    return lines_with_titles, new_xaml_content, titles
 
 def get_property_name(line):
     if ' Property="' in line:
@@ -38,7 +42,11 @@ def get_property_name(line):
         group_property_end = line.index('"', group_property_start)
         return line[group_property_start:group_property_end]
     else:
-        return None
+        old_title_start = line.index(' Title="') + len(' Title="')
+        old_title_end = line.index('"', old_title_start)
+        old_title = line[old_title_start:old_title_end]
+        return old_title.replace(" ", "")
+
 
 def replace_title_with_titlekey(line, file_name, property_name, title_end, title_start):
     if 'Title="' in line:
@@ -61,31 +69,82 @@ def generate_text_resource(lines_with_titles):
         text_resource_lines.add(text_resource_line)
     return text_resource_lines
 
-st.title("XAML Title Detector")
 
-uploaded_file = st.file_uploader("Upload XAML File", type=["xaml"])
-
-if uploaded_file is not None:
-    file_name = os.path.splitext(uploaded_file.name)[0]  # Extract file name without extension
-    xaml_content = uploaded_file.getvalue().decode("utf-8")  # Read the uploaded file content
-    
-    if st.button("Detect Titles"):
-        lines_with_titles, new_xaml_content = detect_titles(xaml_content, file_name)
-
+def process_xaml_content(xaml_content, file_name, if_mode_of_input_entry):
+    lines_with_titles, new_xaml_content, all_titles = detect_titles(xaml_content, file_name)
+    if(if_mode_of_input_entry):
         st.subheader("Modified XAML Content:")
         st.code(new_xaml_content, language='xml')
-
         st.subheader("Generated Text Resource:")
-        text_resource_lines = generate_text_resource(lines_with_titles)
-        xml_text = '\n'.join(text_resource_lines)
+        
+    text_resource_lines = generate_text_resource(lines_with_titles)
+    sorted_text_resource_lines = sorted(text_resource_lines)  # Sort the text resource lines alphabetically
+    xml_text = '\n'.join(sorted_text_resource_lines)
+    
+    if(if_mode_of_input_entry):
         st.code(xml_text, language='xml')
-
         st.subheader("Lines with the generated Title Keys:")
-        table_data = []
-        table_data.append(('Line Number', 'Old Title', 'New Title Key', 'Line Content'))
+    
+    table_data = []
+    table_data.append(('Line Number', 'Old Title', 'New Title Key', 'Line Content Updated'))
 
-        for line_number, title, new_line_content, _ in lines_with_titles:
-            new_title_key = new_line_content.split('TitleKey="')[1].split('"')[0]
-            table_data.append((line_number, title, new_title_key, new_line_content))
+    for line_number, title, new_line_content, _ in lines_with_titles:
+        new_title_key = new_line_content.split('TitleKey="')[1].split('"')[0]
+        table_data.append((line_number, title, new_title_key, new_line_content))
 
+    if(if_mode_of_input_entry):   
         st.table(table_data)
+
+    return all_titles, text_resource_lines, table_data
+
+
+st.title("XAML Title Detector")
+
+option = st.radio("Choose an option:", ("Upload File", "Enter File Content and Name"))
+
+if option == "Upload File":
+    uploaded_files = st.file_uploader("Upload XAML Files", type=["xaml"], accept_multiple_files=True)
+
+    if uploaded_files:
+        all_files = []
+        all_text_resources = set()
+        all_table_data = []
+
+        for uploaded_file in uploaded_files:
+            file_name = os.path.splitext(uploaded_file.name)[0]  # Extract file name without extension
+            xaml_content = uploaded_file.getvalue().decode("utf-8")  # Read the uploaded file content
+
+            st.info(f"Processed {file_name}")
+            titles, text_resources, table_data = process_xaml_content(xaml_content, file_name, False)
+            
+            all_files.append((file_name, xaml_content))
+            all_text_resources.update(text_resources)
+            all_table_data.extend(table_data)
+
+        # Download all updated files
+        if st.button("Download All Updated Files"):
+            zip_file = BytesIO()
+            with zipfile.ZipFile(zip_file, 'w') as zipf:
+                for file_name, content in all_files:
+                    updated_file_content = detect_titles(content, file_name)[1]
+                    zipf.writestr(f"{file_name}.xaml", updated_file_content.encode())
+            zip_file.seek(0)
+            st.download_button(label="Download", data=zip_file, file_name="Processed_XAML_Files.zip", mime="application/zip")
+            
+        # Collate all text resources into a single XML code snippet
+        st.subheader("Collated Text Resources:")
+        collated_xml_text = '\n'.join(all_text_resources)
+        st.code(collated_xml_text, language='xml')
+
+        # Collate all tables into a single table
+        st.subheader("Collated Table Data:")
+        st.dataframe(all_table_data)
+
+
+elif option == "Enter File Content and Name":
+    file_name = st.text_input("Enter File Name (without extension)")
+
+    xaml_content = st.text_area("Paste your XAML content here")
+
+    if st.button("Detect Titles"):
+        process_xaml_content(xaml_content, file_name, True)
